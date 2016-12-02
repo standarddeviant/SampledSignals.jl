@@ -89,6 +89,26 @@
         @test isapprox(sink.buf, data2)
     end
 
+    @testset "type conversion works with short destination" begin
+        dest = SampleBuf(Array(Float32, 10), 48000)
+        srcbuf = SampleBuf(map(PCM16Sample, rand(10000)-0.5), 48000)
+        src = SampleBufSource(srcbuf)
+
+        @test read!(src, dest) == length(dest)
+        @test src.read == length(dest)
+        @test srcbuf[1:length(dest)] == dest
+    end
+
+    @testset "samplerate conversion works with short destination" begin
+        dest = SampleBuf(Array(Float64, 10), 44100)
+        srcbuf = SampleBuf(rand(10000)-0.5, 48000)
+        src = SampleBufSource(srcbuf)
+
+        @test read!(src, dest) == length(dest)
+        @test src.read == length(dest)
+        @test srcbuf[1:length(dest)] == dest
+    end
+
     @testset "stream reading supports frame count larger than blocksize" begin
         data = rand(Float32, 64, 2)
         source = DummySampleSource(48000, data)

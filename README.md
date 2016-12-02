@@ -65,7 +65,7 @@ Rather than specifying read and write durations in terms of frames, you can also
 
 `read!(source, sink)` reads from `source` and writes to `sink` a block at a time, and returns the number of frames read from `source`. This method is not currently implemented.
 
-Note that when connecting `source`s to `sink`s, the only difference between `read!` and `write` is the return value. If the sampling rates match then the value returned should be the same in both cases, but will be different in the case of a samplerate conversion.
+Note that when connecting `source`s to `sink`s, the only difference between `read!` and `write` is the return value. The `read!` functions return the number of frames read from the `source`, and the `write` functions return the number of frames written to the `sink`. If the sampling rates are the same then the number of frames read and written should be the same, but if the operation required a samplerate conversion then they will differ.
 
 ## Plotting Support
 

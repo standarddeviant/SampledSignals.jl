@@ -167,7 +167,7 @@ function Base.write(sink::SampleSink, arr::Array, dur=nframes(arr))
     write(sink, buf, dur)
 end
 
-# TODO: it seems like read! should support a duration
+# TODO: it seems like read! should support a duration and blocksize
 function Base.read!(source::SampleSource, buf::SampleBuf)
     if nchannels(source) == nchannels(buf) &&
             eltype(source) == eltype(buf) &&
