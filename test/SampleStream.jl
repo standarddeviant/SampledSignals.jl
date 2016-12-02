@@ -100,13 +100,20 @@
     end
 
     @testset "samplerate conversion works with short destination" begin
-        dest = SampleBuf(Array(Float64, 10), 44100)
-        srcbuf = SampleBuf(rand(10000)-0.5, 48000)
-        src = SampleBufSource(srcbuf)
+        sr1 = 48000
+        sr2 = 20000
 
-        @test read!(src, dest) == length(dest)
-        @test src.read == length(dest)
-        @test srcbuf[1:length(dest)] == dest
+        srcbuf = SampleBuf(rand(10000)-0.5, sr1)
+        src = SampleBufSource(srcbuf)
+        ratio = sr2//sr1
+        expected = filt(FIRFilter(resample_filter(ratio), ratio), data1)[1:10]
+
+        dest = SampleBuf(Array(Float64, 10), sr2)
+
+        expectedread = ceil(Int, length(dest) / ratio)
+        @test read!(src, dest) == expectedread
+        @test src.read == expectedread
+        @test srcbuf == expected
     end
 
     @testset "stream reading supports frame count larger than blocksize" begin
