@@ -59,13 +59,15 @@ Rather than specifying read and write durations in terms of frames, you can also
 
 `write(sink, buf)` writes the contents of `buf` into `sink`, and returns the number of frames that were written. If fewer frames were written than the length of `buf`, you know that `sink` was closed before the write was complete.
 
-`write(sink, source)` reads from `source` and writes to `sink` a block at a time, and returns the number of frames written to `sink`.
+`write(sink, source)` reads from `source` and writes to `sink` a block at a time until one of them ends or is closed, and returns the number of frames written to `sink`.
 
-`write(sink, source, n)` reads from `source` and writes to `sink` a block at a time, and returns the number of frames written to `sink`. If both the streams stay open it will return after writing `n` frames.
+`write(sink, source, n)` reads from `source` and writes to `sink` a block at a time until one of them ends or is closed, or `n` frames are written to `sink`. It returns the number of frames written to `sink`.
 
-`read!(source, sink)` reads from `source` and writes to `sink` a block at a time, and returns the number of frames read from `source`. This method is not currently implemented.
+`read!(source, sink)` (not implemented) reads from `source` and writes to `sink` a block at a time until one of them ends or is closed, and returns the number of frames read from `source`.
 
-Note that when connecting `source`s to `sink`s, the only difference between `read!` and `write` is the return value. The `read!` functions return the number of frames read from the `source`, and the `write` functions return the number of frames written to the `sink`. If the sampling rates are the same then the number of frames read and written should be the same, but if the operation required a samplerate conversion then they will differ.
+`read!(source, sink, n)` (not implemented) reads from `source` and writes to `sink` a block at a time until one of them ends or is closed, or `n` frames are read from `source`. It returns the number of frames read from `source`.
+
+Note that when connecting `source`s to `sink`s, the only difference between `read!` and `write` is the return value and the meaning of the length argument. The `read!` functions uses the number of frames read from the `source`, and the `write` functions uses the number of frames written to the `sink`. If the sampling rates are the same then the number of frames read and written should be the same, but if the operation required a samplerate conversion then they will differ.
 
 ## Plotting Support
 

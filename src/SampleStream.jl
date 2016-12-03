@@ -120,8 +120,7 @@ function Base.write(sink::SampleSink, source::SampleSource, frames=-1;
     if blocksize == 0
         blocksize = DEFAULT_BLOCKSIZE
     end
-    # looks like everything matches, now we can actually hook up the source
-    # to the sink
+    # hook up the source to the sink, wrapping the sink if necessary
     unsafe_write(wrap_sink(sink, source, blocksize), source, frames, blocksize)
 end
 
@@ -327,6 +326,7 @@ function ResampleSink(wrapped::SampleSink, sr, blocksize=DEFAULT_BLOCKSIZE)
 
     ratio = rationalize(wsr/sr)
     coefs = resample_filter(ratio)
+    # each filter maintains the per-channel state of the filtering process
     filters = [FIRFilter(coefs, ratio) for _ in 1:N]
 
     ResampleSink{typeof(wrapped), typeof(buf), eltype(filters)}(wrapped, sr, buf, ratio, filters)
@@ -340,7 +340,7 @@ Base.eltype(sink::ResampleSink) = eltype(sink.wrapped)
 function unsafe_write(sink::ResampleSink, buf::Array, frameoffset, framecount)
     # check here for a zero-channel sink so we don't crash below
     nchannels(sink) < 1 && return framecount
-    dest_blocksize = nframes(sink.buf)
+    dest_blocksize = blocksize(sink.buf)
     src_blocksize = trunc(Int, dest_blocksize / sink.ratio)
 
     written = 0

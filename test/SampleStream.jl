@@ -99,6 +99,27 @@
         @test srcbuf[1:length(dest)] == dest
     end
 
+    @testset "upmix conversion works with short destination" begin
+        dest = SampleBuf(Array(Float64, 10, 2), 48000)
+        srcbuf = SampleBuf(rand(10000)-0.5, 48000)
+        src = SampleBufSource(srcbuf)
+
+        @test read!(src, dest) == nframes(dest)
+        @test src.read == nframes(dest)
+        @test dest[:, 1] == srcbuf[1:nframes(dest)]
+        @test dest[:, 2] == srcbuf[1:nframes(dest)]
+    end
+
+    @testset "downmix conversion works with short destination" begin
+        dest = SampleBuf(Array(Float64, 10), 48000)
+        srcbuf = SampleBuf(rand(10000, 2)-0.5, 48000)
+        src = SampleBufSource(srcbuf)
+
+        @test read!(src, dest) == nframes(dest)
+        @test src.read == nframes(dest)
+        @test dest == srcbuf[1:nframes(dest), 1] + srcbuf[1:nframes(dest), 2]
+    end
+
     @testset "samplerate conversion works with short destination" begin
         sr1 = 48000
         sr2 = 20000
@@ -106,14 +127,14 @@
         srcbuf = SampleBuf(rand(10000)-0.5, sr1)
         src = SampleBufSource(srcbuf)
         ratio = sr2//sr1
-        expected = filt(FIRFilter(resample_filter(ratio), ratio), data1)[1:10]
+        expected = filt(FIRFilter(resample_filter(ratio), ratio), srcbuf)[1:10]
 
         dest = SampleBuf(Array(Float64, 10), sr2)
 
         expectedread = ceil(Int, length(dest) / ratio)
         @test read!(src, dest) == expectedread
         @test src.read == expectedread
-        @test srcbuf == expected
+        @test isapprox(dest, expected)
     end
 
     @testset "stream reading supports frame count larger than blocksize" begin
