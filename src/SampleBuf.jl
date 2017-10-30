@@ -11,6 +11,7 @@ type SampleBuf{Float32, 2}.
 mutable struct SampleBuf{T, N} <: AbstractSampleBuf{T, N}
     data::Array{T, N}
     samplerate::Float64
+    sdims::Dict{Union{String, Int}, Dict{String, Int}}
 end
 
 # define constructor so conversion is applied to `sr`
@@ -27,6 +28,7 @@ have the type SampleBuf{Float32, 2}.
 mutable struct SpectrumBuf{T, N} <: AbstractSampleBuf{T, N}
     data::Array{T, N}
     samplerate::Float64
+    sdims::Dict{Union{String, Int}, Dict{String, Int}}
 end
 
 # define constructor so conversion is applied to `sr`
@@ -59,6 +61,17 @@ end
 # define audio methods on raw buffers as well
 nframes(arr::AbstractArray) = size(arr, 1)
 nchannels(arr::AbstractArray) = size(arr, 2)
+
+# string indexing functions
+function setdim!(buf::AbstractSampleBuf  dimidx::Int, dimname::AbstractString="", dimvals::Array{String,1})
+    # FIXME, error if length of dimvals != size(buf,dimidx) ???
+    buf.sdims[dimidx] = Dict(dimvals[vidx] => vidx for vidx in 1:length(dimvals))
+    if length(dimname) > 0
+        buf.sdims[dimname] = dimidx
+    end
+
+    buf
+end
 
 # it's important to define Base.similar so that range-indexing returns the
 # right type, instead of just a bare array
@@ -138,7 +151,7 @@ const ticks = ['▁','▂','▃','▄','▅','▆','▇','█']
 # 3-arg version (with explicit mimetype) is needed because we subtype AbstractArray,
 # and there's a 3-arg version defined in show.jl
 function show(io::IO, ::MIME"text/plain", buf::AbstractSampleBuf)
-    println(io, "$(nframes(buf))-frame, $(nchannels(buf))-channel $(typename(buf))")
+    println(io, "$(nframes(buf))-frame, $(size(buf)[2:end])-channel $(typename(buf))")
     len = nframes(buf) / samplerate(buf)
     ustring = unitname(buf)
     srstring = srname(buf)
@@ -246,6 +259,14 @@ function mono(src::AbstractArray)
     mono!(dest, src)
 end
 
+# effectively define a "StringRange" for the purposes of indexing like...
+# a[10ms, "left":"center"], where the 2nd dim is laid out as 
+# "left", "right", "center", "rearleft", "rearright" , as an example
+mutable struct StringInterval
+    lo::String
+    hi::String
+end
+Base.colon(S1::String, S2::String) = StringInterval(S1,S2) # just return a tuple
 
 # the index types that Base knows how to handle. Separate out those that index
 # multiple results
@@ -260,7 +281,9 @@ const ConvertIdx{T1 <: SIQuantity, T2 <: Int} = Union{T1,
                                                 # Vector{T1}, # not supporting vectors of SIQuantities (yet?)
                                                 # Range{T1}, # not supporting ranges (yet?)
                                                 Interval{T2},
-                                                Interval{T1}}
+                                                Interval{T1},
+                                                String,
+                                                StringInterval}
 
 """
     toindex(buf::SampleBuf, I)
@@ -270,6 +293,9 @@ indexing
 """
 function toindex end
 
+# This should compile down to nothing, and makes N-dimensional indexing easier
+toindex(buf::AbstractSampleBuf, I1::BuiltinIdx) = I1
+
 toindex(buf::SampleBuf{T, N}, t::SecondsQuantity) where {T <: Number, N} = round(Int, float(t)*samplerate(buf)) + 1
 toindex(buf::SpectrumBuf{T, N}, t::HertzQuantity) where {T <: Number, N} = round(Int, float(t)*samplerate(buf)) + 1
 
@@ -277,6 +303,12 @@ toindex(buf::SpectrumBuf{T, N}, t::HertzQuantity) where {T <: Number, N} = round
 # toindex{T <: SIUnits.SIQuantity}(buf::SampleBuf, I::Vector{T}) = Int[toindex(buf, i) for i in I]
 toindex(buf::AbstractSampleBuf, I::Interval{Int}) = I.lo:I.hi
 toindex(buf::AbstractSampleBuf, I::Interval{T}) where {T <: SIQuantity} = toindex(buf, I.lo):toindex(buf, I.hi)
+
+todimension(buf::AbstractSampleBuf, D::Int) = D
+todimension(buf::AbstractSampleBuf, D::String) = buf.sdims[D]
+toindex(buf::AbstractSampleBuf, D::Union{Int, String}, I::String) = buf.sdims[todimension(D)][I]
+toindex(buf::AbstractSampleBuf, D::Union{Int, String}, I::StringInterval) = \
+    Colon(buf.sdims[todimension(D)][I.lo], buf.sdims[todimension(D)][I.hi])
 
 # AbstractArray interface methods
 Base.size(buf::AbstractSampleBuf) = size(buf.data)
@@ -290,8 +322,16 @@ Base.getindex(buf::AbstractSampleBuf, I::ConvertIdx) = buf[toindex(buf, I)]
 Base.getindex(buf::AbstractSampleBuf, I1::ConvertIdx, I2::BuiltinIdx) = buf[toindex(buf, I1), I2]
 Base.getindex(buf::AbstractSampleBuf, I1::BuiltinIdx, I2::ConvertIdx) = buf[I1, toindex(buf, I2)]
 Base.getindex(buf::AbstractSampleBuf, I1::ConvertIdx, I2::ConvertIdx) = buf[toindex(buf, I1), toindex(buf, I2)]
+
 # Support 1st dim as ConvertIdx and N-1 dims of BuiltinIdx
 Base.getindex(buf::AbstractSampleBuf, I1::ConvertIdx, I2::Vararg{BuiltinIdx}) = buf[toindex(buf, I1), I2...]
+# Helper for "catch-all" getindex, define toindex in common format w/ dimension D, even if not needed
+toindex(buf::AbstractSampleBuf, D, IV::Vararg{BuiltinIdx, ConvertIdx}) = toindex(buf, IV...)
+# This is the "catch-all" getindex
+function Base.getindex(buf::AbstractSampleBuf, IV::Vararg{Union{BuiltinIdx, ConvertIdx}})
+    buf[ (toindex(buf, D, IV[D]) for D in 1:length(IV) )... ]
+end
+
 # In Julia 0.5 scalar indices are now dropped, so by default indexing
 # buf[5, 1:2] gives you a 2-frame single-channel buffer instead of a 1-frame
 # two-channel buffer. The following getindex method defeats the index dropping
