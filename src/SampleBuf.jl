@@ -143,7 +143,7 @@ function show(io::IO, ::MIME"text/plain", buf::AbstractSampleBuf)
     ustring = unitname(buf)
     srstring = srname(buf)
     print(io, "$(len)$ustring sampled at $(samplerate(buf))$srstring")
-    nframes(buf) > 0 && showchannels(io, buf)
+    # nframes(buf) > 0 && showchannels(io, buf)
 end
 
 function showchannels(io::IO, buf::AbstractSampleBuf, widthchars=80)
